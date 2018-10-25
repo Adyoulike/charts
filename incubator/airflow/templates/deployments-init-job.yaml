@@ -1,0 +1,66 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "airflow.fullname" . }}-init-job
+  labels:
+    app: {{ template "airflow.name" . }}-init-job
+    chart: {{ template "airflow.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: {{ template "airflow.name" . }}-init-job
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmaps.yaml") . | sha256sum }}
+        configmap.fabric8.io/update-on-change: "{{ template "airflow.fullname" . }}-env"
+      labels:
+        app: {{ template "airflow.name" . }}-init-job
+        release: {{ .Release.Name }}
+    spec:
+      restartPolicy: Always
+      {{- if .Values.airflow.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.airflow.image.imagePullSecrets }}
+        - name: {{ . }}
+        {{- end}}
+      {{- end}}
+      containers:
+        - name: {{ .Chart.Name }}-init-job
+          image: {{ .Values.airflow.image.repository }}:{{ .Values.airflow.image.tag }}
+          imagePullPolicy: {{ .Values.airflow.image.pull_policy }}
+          envFrom:
+          - configMapRef:
+              name: "{{ template "airflow.fullname" . }}-env"
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "airflow.fullname" . }}
+                  key: postgresUser
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "airflow.fullname" . }}
+                  key: postgresPassword
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "airflow.fullname" . }}
+                  key: redisPassword
+          args:
+            - "bash"
+            - "-c"
+            - >
+              echo 'waiting 60s...' && sleep 60 &&
+              airflow connections --add --conn_id $(CONNECTION_ID) --conn_type google_cloud_platform --conn_extra '{"extra__google_cloud_platform__project": "'$GCS_PROJECT'"}'
