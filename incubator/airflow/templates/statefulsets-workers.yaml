@@ -36,6 +36,12 @@ spec:
         release: {{ .Release.Name }}
     spec:
       restartPolicy: Always
+      {{- if .Values.airflow.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.airflow.image.imagePullSecrets }}
+        - name: {{ . }}
+        {{- end}}
+      {{- end}}
       terminationGracePeriodSeconds: 30
       serviceAccountName: {{ .Values.workers.serviceAccountName }}
       {{- if .Values.dags.init_container.enabled }}

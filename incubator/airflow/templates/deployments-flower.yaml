@@ -29,6 +29,12 @@ spec:
         release: {{ .Release.Name }}
     spec:
       restartPolicy: Always
+      {{- if .Values.airflow.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.airflow.image.imagePullSecrets }}
+        - name: {{ . }}
+        {{- end}}
+      {{- end}}
       containers:
         - name: {{ .Chart.Name }}-flower
           image: {{ .Values.airflow.image.repository }}:{{ .Values.airflow.image.tag }}
